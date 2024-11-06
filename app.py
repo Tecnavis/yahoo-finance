@@ -92,8 +92,6 @@ def start_currency_updates():
     while True:
         aed_to_inr_response = aed_to_inr()
         usd_to_inr_response = usd_to_inr()
-        print(f"USD to INR Response: {usd_to_inr_response}")
-        print(f"AED to INR Response: {aed_to_inr_response}")
         socketio.emit('currency_update', aed_to_inr_response)
         socketio.emit('currency_update', usd_to_inr_response)
         socketio.sleep(30)
