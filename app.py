@@ -1,13 +1,19 @@
+import eventlet
+
+eventlet.monkey_patch()
+
 from flask import Flask, jsonify, render_template
 from yahoo_fin import stock_info
 from datetime import datetime
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO ,emit
 from dotenv import load_dotenv
 import os
+from flask import request
 
 load_dotenv()
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins='*')
+socketio = SocketIO(app, cors_allowed_origins='*', engineio_logger=True, async_mode='eventlet')
+connected_clients = 0
 
 
 @app.route('/')
@@ -76,27 +82,44 @@ def usd_to_inr():
 
 @socketio.on('connect')
 def handle_connect():
-    print("Client connected")
+    global connected_clients
+    connected_clients += 1
     socketio.sleep(0.1)
-    emit('message', {'data': 'Connected to the server'})
+    print(f"Client connected. Total clients: {connected_clients}")
+
+    socketio.emit('welcome_message', {
+        'message': 'Welcome to the currency update WebSocket!',
+        'status': 'success'
+    }, to=request.sid)
+
+    if connected_clients == 1:
+        socketio.start_background_task(run_currency_updates)
 
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print("Client disconnected")
+    global connected_clients
+    connected_clients -= 1
+    print(f"Client disconnected. Total clients: {connected_clients}")
 
 
-@socketio.on('start_updates')
-def start_currency_updates():
-    """Emit currency updates to clients every 1 minute."""
-    while True:
-        aed_to_inr_response = aed_to_inr()
-        usd_to_inr_response = usd_to_inr()
-        socketio.emit('currency_update', aed_to_inr_response)
-        socketio.emit('currency_update', usd_to_inr_response)
-        socketio.sleep(30)
+def run_currency_updates():
+    with app.app_context():
+        while connected_clients > 0:
+            try:
+                aed_to_inr_response = aed_to_inr()
+                usd_to_inr_response = usd_to_inr()
+                socketio.emit('currency_update', {
+                    'aed_to_inr': aed_to_inr_response,
+                    'usd_to_inr': usd_to_inr_response,
+                })
+            except Exception as e:
+                print(f"Error in fetching currency data: {e}")
+
+            socketio.sleep(60)
 
 
 if __name__ == '__main__':
-    socketio.start_background_task(start_currency_updates)
-    socketio.run(app, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+
+

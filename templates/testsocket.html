@@ -14,12 +14,17 @@
             console.log('Connected to the server');
         });
 
-        socket.on('message', (data) => {
-            console.log('Message from server:', data);
+
+         socket.on('welcome_message', (data) => {
+            console.log("Received welcome message:", data);
+        });
+
+        socket.onAny((event, ...args) => {
+            console.log(`Received event: ${event}`, args);
         });
 
         socket.on('currency_update', (data) => {
-            console.log('Currency update received:', data);
+         console.log('Currency update received:data is', data);
         });
 
         socket.on('disconnect', () => {
